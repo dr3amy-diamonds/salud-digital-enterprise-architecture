@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.post("/ordenes", status_code=201)
-def crear_orden(payload: OrdenCreate, db: Session = Depends(get_db), _u=Depends(require_role(["bacteriologo", "admin"]))):
+def crear_orden(payload: OrdenCreate, db: Session = Depends(get_db), _u=Depends(require_role(["medico", "bacteriologo", "admin"]))):
     if not db.query(Paciente).filter(Paciente.id == payload.paciente_id).first():
         raise HTTPException(status_code=404, detail="Paciente no existe")
     o = OrdenLab(paciente_id=payload.paciente_id, atencion_id=payload.atencion_id, tipo_examen=payload.tipo_examen)

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 
 from backend.app.core.config import settings
@@ -11,8 +11,9 @@ from backend.app.core.config import settings
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-# El login vive en /auth/login, por eso el tokenUrl apunta alli.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# Bearer simple: el login sigue en /auth/login con formulario OAuth2,
+# pero la validacion del token lee el header Authorization directo.
+security = HTTPBearer()
 
 
 def hash_password(password: str) -> str:
@@ -33,14 +34,14 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciales invalidas o sesion expirada",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(credentials.credentials, settings.JWT_SECRET, algorithms=[ALGORITHM])
         username: str | None = payload.get("sub")
         role: str | None = payload.get("role")
         if not username or not role:
