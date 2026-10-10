@@ -179,3 +179,46 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# --- SaludDigital: especifico del proyecto ---
+
+# IDE JetBrains (PyCharm): configuracion local, datasources con credenciales (.idea/ esta en disco)
+.idea/
+
+# Herramientas locales de agentes/IA: configuracion de la maquina, no del proyecto
+.agents/
+.claude/
+skills-lock.json
+
+# Frontend (React + Vite): dependencias, compilados y cache
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/coverage/
+frontend/.vite/
+*.tsbuildinfo
+
+# Variables de entorno locales y por entorno (.env raiz y de subcarpetas ya ignorado arriba)
+.env.local
+.env.*.local
+
+# Sistema operativo / OneDrive / Office
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+*.tmp
+
+# Secretos y certificados locales
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Respaldos de BD locales (los .sql versionados de database/ si se suben)
+*.dump
+*.backup
+*.sql.gz
+
+# Override local de Docker Compose
+docker-compose.override.yml
