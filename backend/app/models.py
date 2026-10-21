@@ -13,6 +13,12 @@ class Usuario(Base):
     username = Column(Text, unique=True, nullable=False, index=True)
     hashed_password = Column(Text, nullable=False)
     role = Column(Text, nullable=False)
+    paciente_id = Column(
+        Integer,
+        ForeignKey("admision.pacientes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, server_default=func.now())
 

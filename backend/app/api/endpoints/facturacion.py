@@ -36,6 +36,7 @@ def listar_facturas(
 
 
 @router.get("/resumen")
+@router.get("/resumen-diario")
 def resumen(db: Session = Depends(get_db), _u=Depends(require_role(["cajero", "gerencia", "admin"]))):
     rows = db.execute(text("SELECT dia, cantidad_facturas, total_recaudado FROM facturacion.v_facturacion_diaria ORDER BY dia")).mappings().all()
     return [{"dia": str(r["dia"]), "cantidad_facturas": r["cantidad_facturas"], "total_recaudado": float(r["total_recaudado"] or 0)} for r in rows]

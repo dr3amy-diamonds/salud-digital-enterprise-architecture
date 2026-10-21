@@ -1,0 +1,72 @@
+.lab-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.lab-layout-wide {
+  grid-template-columns: 1fr;
+}
+
+.lab-forms,
+.lab-lists {
+  display: grid;
+  gap: 16px;
+}
+
+.result-fields {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.result-fields legend {
+  padding: 0 4px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.result-row .field {
+  gap: 0;
+}
+
+.result-remove {
+  align-self: end;
+  min-height: 42px;
+}
+
+.detail-code {
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1180px) {
+  .lab-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .result-row {
+    grid-template-columns: 1fr;
+  }
+
+  .result-remove {
+    justify-self: start;
+    min-height: 34px;
+  }
+}

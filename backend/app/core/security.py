@@ -46,7 +46,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         role: str | None = payload.get("role")
         if not username or not role:
             raise credentials_error
-        return {"username": username, "role": role}
+        return {"username": username, "role": role, "paciente_id": payload.get("paciente_id")}
     except JWTError:
         raise credentials_error
 
@@ -58,3 +58,13 @@ def require_role(allowed: list[str]):
         return user
 
     return checker
+
+
+def paciente_id_from_token(user: dict) -> int:
+    paciente_id = user.get("paciente_id")
+    if not paciente_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cuenta de paciente sin expediente vinculado",
+        )
+    return int(paciente_id)

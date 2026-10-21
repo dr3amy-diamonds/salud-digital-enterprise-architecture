@@ -2,10 +2,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.app.core.security import require_role
+from backend.app.core.security import paciente_id_from_token, require_role
 from backend.app.db.session import get_db
 from backend.app.models import OrdenLab, Paciente, ResultadoLab, Usuario
-from backend.app.schemas import OrdenCreate, ResultadoCreate
+from backend.app.schemas import OrdenCreate, ResultadoCreate, ResultadoLabOut
 
 router = APIRouter()
 
@@ -52,6 +52,38 @@ def crear_resultado(payload: ResultadoCreate, db: Session = Depends(get_db), use
     db.commit()
     db.refresh(r)
     return {"id": r.id, "orden_id": r.orden_id}
+
+
+@router.get("/resultados/mis-resultados", response_model=list[ResultadoLabOut])
+def listar_mis_resultados(
+    db: Session = Depends(get_db),
+    user=Depends(require_role(["paciente"])),
+):
+    paciente_id = paciente_id_from_token(user)
+    rows = (
+        db.query(ResultadoLab, OrdenLab)
+        .join(OrdenLab, ResultadoLab.orden_id == OrdenLab.id)
+        .join(Paciente, OrdenLab.paciente_id == Paciente.id)
+        .filter(OrdenLab.paciente_id == paciente_id, OrdenLab.estado == "Procesada")
+        .order_by(ResultadoLab.fecha_resultado.desc(), ResultadoLab.id.desc())
+        .limit(100)
+        .all()
+    )
+    resultados = []
+    for resultado, orden in rows:
+        detalle = resultado.detalle_resultado if isinstance(resultado.detalle_resultado, dict) else {}
+        pdf_url = detalle.get("pdf_url")
+        resultados.append(
+            {
+                "id": resultado.id,
+                "orden_id": resultado.orden_id,
+                "tipo_examen": orden.tipo_examen,
+                "detalle_resultado": detalle,
+                "fecha_resultado": resultado.fecha_resultado,
+                "pdf_url": str(pdf_url) if pdf_url is not None else None,
+            }
+        )
+    return resultados
 
 
 @router.get("/resultados")

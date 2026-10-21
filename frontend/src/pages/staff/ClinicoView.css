@@ -1,0 +1,27 @@
+.clinical-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.clinical-layout .filter-field {
+  min-width: 190px;
+}
+
+@media (max-width: 1100px) {
+  .clinical-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .clinical-layout .panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .clinical-layout .filter-field {
+    min-width: 0;
+  }
+}

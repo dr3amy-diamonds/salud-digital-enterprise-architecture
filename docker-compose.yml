@@ -1,0 +1,77 @@
+networks:
+  salud_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+  # Servicio 1: Base de datos PostgreSQL 15
+  db:
+    image: postgres:15-alpine
+    container_name: salud_db_container
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: America/Bogota
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - salud_net
+
+  # Servicio 2: Backend API (FastAPI)
+  backend:
+    build: ./backend
+    container_name: salud_backend_container
+    restart: always
+    env_file:
+      - .env
+    environment:
+      # Dentro de la red de Docker, PostgreSQL escucha en el puerto 5432.
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Misma zona horaria que el navegador para validar citas futuras.
+      TZ: America/Bogota
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/', timeout=3).status == 200 else 1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - salud_net
+
+  # Servicio 3: Frontend Web (React + Vite)
+  frontend:
+    build: ./frontend
+    container_name: salud_frontend_container
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - salud_net

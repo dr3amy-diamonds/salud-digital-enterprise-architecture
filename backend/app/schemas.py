@@ -16,10 +16,34 @@ class PacienteCreate(BaseModel):
 
 
 class CitaCreate(BaseModel):
-    paciente_id: int
+    paciente_id: int | None = None
     fecha: datetime
     especialidad: str = Field(..., min_length=2)
     estado: str = "Agendada"
+
+
+class CitaReprogramar(BaseModel):
+    fecha: datetime
+
+
+class CitaOut(BaseModel):
+    id: int
+    paciente_id: int
+    fecha: datetime
+    especialidad: str
+    estado: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ResultadoLabOut(BaseModel):
+    id: int
+    orden_id: int
+    tipo_examen: str
+    detalle_resultado: dict
+    fecha_resultado: datetime | None = None
+    pdf_url: str | None = None
 
 
 class HistoriaCreate(BaseModel):
