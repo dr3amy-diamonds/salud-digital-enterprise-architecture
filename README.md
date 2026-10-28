@@ -1,25 +1,83 @@
 # SaludDigital Enterprise Architecture
 
-SaludDigital es una plataforma académica de gestión clínica para una clínica privada ficticia. Implementa una arquitectura empresarial por dominios con separación de responsabilidades entre admisión, historia clínica, laboratorio, farmacia, facturación y analítica gerencial.
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white&labelColor=111827)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white&labelColor=111827)
+![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black&labelColor=111827)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white&labelColor=111827)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white&labelColor=111827)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=white&labelColor=111827)
 
-El sistema expone una API REST protegida con JWT y control de acceso basado en roles (RBAC). El frontend ajusta la experiencia según el rol autenticado, y PostgreSQL aplica el principio de mínimo privilegio para el usuario de analítica.
+## 1. Encabezado y visión general
 
-> Proyecto académico. No está diseñado para producción ni para almacenar datos clínicos reales.
+SaludDigital es una plataforma enterprise de gestión clínica y administrativa para una clínica privada ficticia. Integra los dominios de admisión, historia clínica, laboratorio, farmacia, facturación y analítica gerencial bajo una arquitectura por dominios con separación clara de responsabilidades.
 
-## Stack tecnológico
+El sistema expone una API REST protegida con JWT y control de acceso basado en roles (RBAC). El frontend ajusta la experiencia según el rol autenticado, mientras PostgreSQL aplica el principio de mínimo privilegio para el usuario de analítica. El backend es la autoridad final de permisos; la interfaz solo adapta la experiencia por conveniencia.
 
-| Capa | Tecnología |
-|---|---|
-| Backend | FastAPI, SQLAlchemy, Pydantic, Uvicorn |
-| Frontend | React 19, TypeScript, Vite, React Router |
-| Base de datos | PostgreSQL 15 |
-| Infraestructura | Docker, Docker Compose |
-| Analítica | Power BI (conexión de solo lectura) |
-| Autenticación | JWT (HS256) y contraseñas con bcrypt |
+Roles soportados: paciente, médico, bacteriólogo, farmacéutico, cajero, gerencia y administrador. El proyecto es académico: no está diseñado para producción ni para almacenar datos clínicos reales.
 
-## Despliegue rápido
+## 2. Arquitectura de software y módulos (RBAC)
 
-Requisitos: Docker Desktop en ejecución y el archivo `.env` en la raíz.
+### Dominios y módulos
+
+| Esquema / módulo | Responsabilidad |
+| --- | --- |
+| `admision` | Maestro de pacientes, citas, usuarios y solicitudes de acceso institucional |
+| `clinico` | Historias clínicas y atención médica |
+| `lab` | Órdenes de laboratorio y resultados estructurados en JSONB |
+| `farmacia` | Recetas electrónicas y estado de dispensación |
+| `facturacion` | Facturas por concepto y vista agregada para analítica |
+
+### Roles y alcance operativo
+
+| Rol | Módulo principal | Alcance operativo |
+| --- | --- | --- |
+| Paciente | Portal del paciente | Autoregistro directo, agendamiento, reprogramación y cancelación de citas propias, consulta de exámenes procesados |
+| Médico | Estación clínica | Historias clínicas, recetas electrónicas y órdenes de laboratorio |
+| Bacteriólogo | Módulo de laboratorio | Procesamiento de muestras y carga de resultados |
+| Farmacéutico | Módulo de farmacia | Dispensación de medicamentos y control de stock |
+| Cajero | Módulo de facturación | Facturación por concepto (atención, laboratorio, medicamentos) y recaudos |
+| Gerencia | Tablero de control | KPI operativos y financieros |
+| Administrador | Gestión de usuarios | Gestión de usuarios y aprobaciones de cuentas institucionales |
+
+### Matriz de permisos por rol
+
+`R` = lectura, `W` = escritura, `—` = sin acceso. El backend valida cada permiso en el servidor.
+
+| Módulo | medico | bacteriologo | farmaceutico | cajero | gerencia | admin | paciente |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Admisión — pacientes | R/W | R | R | R/W | R | R/W | — |
+| Admisión — citas | R/W | R | R | R/W | R | R/W | R/W (solo propias) |
+| Historia clínica | R/W | — | — | — | — | — | — |
+| Laboratorio — órdenes | R/W | R/W | — | — | R | R/W | — |
+| Laboratorio — resultados | R | R/W | — | — | — | R/W | R (solo propios procesados) |
+| Farmacia — recetas | R/W | — | R/W | — | R | R/W | — |
+| Facturación | — | — | — | R/W | R | R/W | — |
+| Usuarios y cuentas | — | — | — | — | — | R/W | — |
+
+Reglas operativas relevantes:
+
+- El rol `paciente` solo puede agendar, cancelar o reprogramar citas propias. El estado inicial siempre se fuerza a `Agendada`.
+- Toda cita debe tener una fecha estrictamente futura; el servidor responde `400 Bad Request` si la fecha ya pasó.
+- Los módulos de solo lectura ocultan formularios de escritura y muestran la insignia **Vista de Solo Lectura**.
+- `gerencia` no accede a historia clínica ni a resultados de laboratorio.
+- Un paciente solo puede gestionar citas vinculadas a su expediente (`paciente_id` del JWT).
+
+### Autenticación y acceso
+
+- Login en `POST /auth/login` con credenciales de usuario y contraseña.
+- El JWT usa HS256 y expira a los 60 minutos. Incluye `sub` (usuario), `role` y `paciente_id`.
+- Contraseñas almacenadas con bcrypt.
+- El paciente puede autoregistrarse en `POST /auth/registro-paciente`.
+- El personal institucional solicita acceso en `POST /auth/solicitudes`; el administrador crea y aprueba cuentas.
+- Cambio de contraseña en `POST /auth/cambiar-password`.
+
+## 3. Guía de instalación y despliegue con Docker
+
+### Requisitos previos
+
+- Docker Desktop en ejecución.
+- Archivo `.env` en la raíz del proyecto.
+- Puerto `5173`, `8000` y `5433` disponibles.
 
 Si no existe `.env`, créalo a partir de la plantilla:
 
@@ -27,34 +85,34 @@ Si no existe `.env`, créalo a partir de la plantilla:
 Copy-Item .env.example .env
 ```
 
-Levanta todos los servicios con un solo comando:
+### Levantar el entorno
 
 ```bash
 docker compose up -d --build
 ```
 
-Servicios disponibles:
-
-| Servicio | URL |
-|---|---|
-| Frontend | http://localhost:5173 |
-| API | http://localhost:8000 |
-| Documentación Swagger | http://localhost:8000/docs |
-| PostgreSQL | localhost:5433 |
-
-Verifica el estado:
+Verifica el estado de los servicios:
 
 ```bash
 docker compose ps
 ```
 
-Detén la plataforma:
+Servicios disponibles:
+
+| Servicio | URL |
+| --- | --- |
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| Documentación Swagger | http://localhost:8000/docs |
+| PostgreSQL | localhost:5433 |
+
+### Detener la plataforma
 
 ```bash
 docker compose down
 ```
 
-### Reinicio completo de la base de datos
+### Mantenimiento y reinicio completo de la base de datos
 
 `database/init.sql` solo se ejecuta al crear el volumen por primera vez. Si modificas el script y necesitas reaplicarlo, elimina el volumen. Esta operación borra todos los datos existentes y no se puede deshacer:
 
@@ -63,69 +121,98 @@ docker compose down -v
 docker compose up -d --build
 ```
 
-## Usuarios de prueba
+Los contenedores de backend y frontend no montan código fuente. Rebuild después de cada cambio de código; reiniciar solo no despliega los cambios.
+
+### Verificación de calidad local
+
+Frontend, desde `frontend/`:
+
+```bash
+npm install
+npm run lint
+npm run build
+```
+
+Backend, desde `backend/`:
+
+```powershell
+..\.venv\Scripts\python.exe -m py_compile app\api\endpoints\admision.py app\schemas.py
+```
+
+## 4. Credenciales de prueba (tabla de usuarios)
 
 Todas las cuentas precreadas usan la misma contraseña: `Salud2026*`.
 
 | Usuario | Rol | Descripción |
-|---|---|---|
+| --- | --- | --- |
 | `admin` | admin | Superusuario técnico y gestión de cuentas |
 | `drmartinez` | medico | Atención clínica, órdenes y recetas |
 | `lab1` | bacteriologo | Procesamiento de resultados de laboratorio |
-| `farmacia1` | farmaceutico | Registro de recetas |
+| `farmacia1` | farmaceutico | Registro y dispensación de recetas |
 | `cajero1` | cajero | Facturación y admisión |
 | `gerencia1` | gerencia | Consulta gerencial y tablero de indicadores |
 | `paciente1` | paciente | Portal del paciente (Laura Sofía Valencia) |
 
 Recomendación: cambiar la contraseña del usuario `admin` después del primer inicio de sesión mediante `POST /auth/cambiar-password`.
 
-## Matriz de roles (RBAC)
+## 5. Persistencia de datos y conexión Power BI
 
-`R` = lectura, `W` = escritura, `—` = sin acceso. El backend valida cada permiso en el servidor; el frontend solo oculta acciones por conveniencia.
+### Esquemas PostgreSQL
 
-| Módulo | medico | bacteriologo | farmaceutico | cajero | gerencia | admin | paciente |
-|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| Admisión — pacientes | R/W | R | R | R/W | R | R/W | — |
-| Admisión — citas | R/W | R | R | R/W | R | R/W | R/W (solo propias) |
-| Historia clínica | R/W | — | — | — | — | — | — |
-| Laboratorio — órdenes | R/W | R/W | — | — | R | R/W | — |
-| Laboratorio — resultados | R | R/W | — | — | — | R/W | R (solo propios, procesados) |
-| Farmacia — recetas | R/W | — | R/W | — | R | R/W | — |
-| Facturación | — | — | — | R/W | R | R/W | — |
-| Usuarios y cuentas | — | — | — | — | — | R/W | — |
+| Esquema | Tablas / objetos | Descripción |
+| --- | --- | --- |
+| `admision` | `pacientes`, `citas`, `usuarios`, `solicitudes_acceso` | Maestro operativo, citas y usuarios del sistema |
+| `clinico` | `historias` | Historias clínicas y atenciones médicas |
+| `lab` | `ordenes`, `resultados` | Órdenes de laboratorio y resultados JSONB |
+| `farmacia` | `recetas` | Recetas electrónicas y estado de dispensación |
+| `facturacion` | `facturas`, `v_facturacion_diaria` | Facturas base y vista agregada para BI |
 
-Reglas de negocio relevantes:
+### Modelo de datos principal
 
-- El rol `paciente` solo puede agendar, cancelar o reprogramar citas propias; el estado inicial siempre se fuerza a `Agendada`.
-- Toda cita debe tener una fecha estrictamente futura; el servidor responde `400 Bad Request` si la fecha ya pasó.
-- Los módulos de solo lectura ocultan los formularios de escritura y muestran la insignia **Vista de Solo Lectura**.
-- `gerencia` no accede a historia clínica ni a resultados de laboratorio.
+- `admision.pacientes`: identidad del paciente, documento único y fecha de registro.
+- `admision.citas`: paciente, fecha, especialidad y estado (`Agendada`, `Cancelada`, etc.).
+- `admision.usuarios`: credenciales por rol, estado activo y vinculación opcional a `paciente_id`.
+- `admision.solicitudes_acceso`: solicitudes institucionales con estado `Pendiente`, `Aprobada` o `Rechazada`.
+- `clinico.historias`: motivo, diagnóstico, médico y vínculo opcional a cita.
+- `lab.ordenes`: paciente, atención opcional, tipo de examen y estado.
+- `lab.resultados`: orden única, detalle en JSONB, fecha y bacteriólogo.
+- `farmacia.recetas`: paciente, atención opcional, medicamento, dosis y estado.
+- `facturacion.facturas`: paciente, concepto (`Atención médica`, `Laboratorio` o `Medicamentos`), total y estado de pago.
+- `facturacion.v_facturacion_diaria`: vista agregada con `dia`, `cantidad_facturas` y `total_recaudado`.
 
-## Acceso para Power BI
+### Conexión Power BI
+
+Conecta Power BI Desktop mediante el conector PostgreSQL con estos parámetros:
 
 | Parámetro | Valor |
-|---|---|
-| Usuario | `bi_readonly` |
-| Contraseña | `solo_lectura` |
+| --- | --- |
 | Host | `localhost` |
 | Puerto | `5433` |
 | Base de datos | `salud_db` |
-| Esquema | `facturacion` |
-| Vista | `v_facturacion_diaria` |
+| Usuario | `bi_readonly` |
+| Contraseña | `solo_lectura` |
+| Esquema principal | `facturacion` |
+| Vista | `facturacion.v_facturacion_diaria` |
 
-Tabla de la vista: `dia`, `cantidad_facturas`, `total_recaudado`.
+Cadena de conexión de referencia:
+
+```text
+Host=localhost;Port=5433;Database=salud_db;Username=bi_readonly;Password=solo_lectura
+```
 
 El usuario `bi_readonly` tiene privilegios limitados:
 
 - Lectura sobre los esquemas `admision`, `lab` y `farmacia`.
 - Lectura únicamente de la vista agregada `facturacion.v_facturacion_diaria`.
-- Sin acceso al esquema `clinico`, a las facturas base ni a las credenciales de usuarios.
+- Sin acceso al esquema `clinico`, a las facturas base ni a las credenciales de usuarios (`admision.usuarios`).
 
-Si el cliente de Power BI exige una cadena de conexión, usa:
+### Notas de seguridad
 
-```text
-Host=localhost;Port=5433;Database=salud_db;Username=bi_readonly;Password=solo_lectura
-```
+- Las contraseñas se almacenan con bcrypt y nunca en texto plano.
+- El JWT expira a los 60 minutos e incluye el rol y el identificador del paciente.
+- El backend es la autoridad final de permisos; el frontend no reemplaza las validaciones del servidor.
+- `bi_readonly` aplica mínimo privilegio y no puede leer información clínica sensible.
+- Las credenciales incluidas son de demostración académica. Cámbialas antes de cualquier uso fuera del aula.
 
 ## Estructura del proyecto
 
@@ -140,23 +227,3 @@ Host=localhost;Port=5433;Database=salud_db;Username=bi_readonly;Password=solo_le
 ├── .env.example             Variables de entorno de referencia
 └── README.md                Guía de entrega y despliegue
 ```
-
-## Verificación de calidad
-
-Desde `frontend/`:
-
-```bash
-npm install
-npm run lint
-npm run build
-```
-
-Ambos comandos deben finalizar sin errores ni advertencias.
-
-## Notas de seguridad
-
-- Las contraseñas se almacenan con bcrypt y nunca en texto plano.
-- El JWT expira a los 60 minutos e incluye el rol y el identificador del paciente.
-- El backend es la autoridad final de permisos; el frontend no reemplaza las validaciones del servidor.
-- `bi_readonly` aplica mínimo privilegio y no puede leer información clínica sensible.
-- Las credenciales incluidas son de demostración académica. Cámbialas antes de cualquier uso fuera del aula.
