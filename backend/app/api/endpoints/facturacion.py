@@ -15,11 +15,26 @@ router = APIRouter()
 def crear_factura(payload: FacturaCreate, db: Session = Depends(get_db), _u=Depends(require_role(["cajero", "admin"]))):
     if not db.query(Paciente).filter(Paciente.id == payload.paciente_id).first():
         raise HTTPException(status_code=404, detail="Paciente no existe")
-    f = Factura(paciente_id=payload.paciente_id, atencion_id=payload.atencion_id, total=payload.total)
+    f = Factura(paciente_id=payload.paciente_id, atencion_id=payload.atencion_id, total=payload.total, concepto=payload.concepto)
     db.add(f)
     db.commit()
     db.refresh(f)
-    return {"id": f.id, "paciente_id": f.paciente_id, "total": float(f.total)}
+    return {"id": f.id, "paciente_id": f.paciente_id, "total": float(f.total), "concepto": f.concepto}
+
+
+@router.patch("/facturas/{factura_id}/pagar", status_code=200)
+def pagar_factura(
+    factura_id: int,
+    db: Session = Depends(get_db),
+    _u=Depends(require_role(["cajero", "gerencia", "admin"])),
+):
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    factura.estado_pago = "Pagada"
+    db.commit()
+    db.refresh(factura)
+    return {"id": factura.id, "estado_pago": factura.estado_pago}
 
 
 @router.get("/facturas")
@@ -32,7 +47,7 @@ def listar_facturas(
     if paciente_id:
         q = q.filter(Factura.paciente_id == paciente_id)
     rows = q.order_by(Factura.id.desc()).limit(100).all()
-    return [{"id": r.id, "paciente_id": r.paciente_id, "total": float(r.total), "estado_pago": r.estado_pago} for r in rows]
+    return [{"id": r.id, "paciente_id": r.paciente_id, "total": float(r.total), "concepto": r.concepto, "estado_pago": r.estado_pago} for r in rows]
 
 
 @router.get("/resumen")

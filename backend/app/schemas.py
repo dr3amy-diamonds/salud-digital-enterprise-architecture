@@ -76,6 +76,7 @@ class FacturaCreate(BaseModel):
     paciente_id: int
     atencion_id: int | None = None
     total: float = Field(..., gt=0)
+    concepto: str = Field(..., min_length=3, pattern="^(Atención médica|Examen de laboratorio|Medicamentos)$")
 
 
 class LoginRequest(BaseModel):

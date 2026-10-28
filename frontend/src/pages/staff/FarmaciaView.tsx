@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import api from '../../api/client'
-import { EmptyState, ErrorState, LoadingRows } from '../../components/staff/DataState'
+import { EmptyState } from '../../components/staff/DataState'
 import { Feedback } from '../../components/staff/Feedback'
 import { ModulePage } from '../../components/staff/ModulePage'
 import { PatientSelect } from '../../components/staff/PatientSelect'
@@ -24,8 +24,9 @@ export function FarmaciaView() {
   const [message, setMessage] = useState<Message>(null)
   const [pending, setPending] = useState(false)
 
-  const canWrite =
-    session?.role === 'medico' || session?.role === 'farmaceutico' || session?.role === 'admin'
+  // Only médico can create new recetas; farmacéutico only dispenses
+  const isMedico = session?.role === 'medico'
+  const canWrite = isMedico
 
   const patientName = (id: number) =>
     patients.data.find((patient) => patient.id === id)?.nombre ?? `Paciente #${id}`
@@ -50,9 +51,25 @@ export function FarmaciaView() {
     }
   }
 
+  // Filtrar recetas pendientes por dispensar
+  const pendingRecetas = recetas.data.filter((r) => r.estado === 'Pendiente')
+
+  const handleDispensar = async (recetaId: number) => {
+    setPending(true)
+    try {
+      await api.patch(`/farmacia/recetas/${recetaId}/dispensar`)
+      setMessage({ tone: 'success', text: 'Medicamento dispensado y entregado.' })
+      await recetas.reload()
+    } catch (error) {
+      setMessage({ tone: 'error', text: getApiError(error) })
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
     <ModulePage
-      description="Registra fórmulas médicas y consulta las recetas pendientes de dispensación. Gerencia consulta sin modificar."
+      description="Registra fórmulas médicas y consulta recetas pendientes de dispensación. Gerencia consulta sin modificar."
       icon="pill"
       kicker="Módulo 04 · Farmacia"
       readOnly={!canWrite}
@@ -115,54 +132,74 @@ export function FarmaciaView() {
           </section>
         )}
 
-        <section aria-labelledby="recipes-list-title" className="panel">
+        {!isMedico && (
+          <section aria-labelledby="recipe-form-title" className="panel">
+            <div className="panel-head">
+              <div>
+                <p className="section-kicker">Prescripción</p>
+                <h2 className="panel-title" id="recipe-form-title">
+                  Nueva receta
+                </h2>
+                <p className="panel-subtitle">Solo los médicos pueden prescribir.</p>
+              </div>
+            </div>
+            <p>Formulario oculto para rol farmacéutico.</p>
+          </section>
+        )}
+
+        <section aria-labelledby="pendings-list-title" className="panel">
           <div className="panel-head">
             <div>
-              <p className="section-kicker">Trazabilidad</p>
-              <h2 className="panel-title" id="recipes-list-title">
-                Recetas registradas
+              <p className="section-kicker">Dispensación pendiente</p>
+              <h2 className="panel-title" id="pendings-list-title">
+                Recetas pendientes por dispensar
               </h2>
+              {pendingRecetas.length === 0 ? (
+                <EmptyState icon="pill" title="Sin recetas pendientes">
+                  No hay recetas pendientes de dispensar.
+                </EmptyState>
+              ) : (
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Paciente</th>
+                        <th scope="col">Medicamento</th>
+                        <th scope="col">Dosis</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingRecetas.map((receta) => (
+                        <tr key={receta.id}>
+                          <td className="cell-strong" data-label="Paciente">
+                            {patientName(receta.paciente_id)}
+                          </td>
+                          <td data-label="Medicamento">{receta.medicamento}</td>
+                          <td className="cell-wrap" data-label="Dosis">
+                            {receta.dosis}
+                          </td>
+                          <td data-label="Estado">
+                            <StatusChip estado={receta.estado} />
+                          </td>
+                          <td data-label="Acción">
+                            <button
+                              className="button button-secondary"
+                              onClick={() => handleDispensar(receta.id)}
+                              disabled={pending}
+                            >
+                              {pending ? 'Dispensando…' : 'Dispensar / Entregar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-            <span className="count-badge">{recetas.data.length}</span>
           </div>
-          {recetas.loading ? (
-            <LoadingRows rows={4} />
-          ) : recetas.error ? (
-            <ErrorState message={recetas.error} onRetry={() => void recetas.reload()} />
-          ) : recetas.data.length === 0 ? (
-            <EmptyState icon="pill" title="Sin recetas">
-              Las fórmulas médicas registradas aparecerán aquí.
-            </EmptyState>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Paciente</th>
-                    <th scope="col">Medicamento</th>
-                    <th scope="col">Dosis</th>
-                    <th scope="col">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recetas.data.map((receta) => (
-                    <tr key={receta.id}>
-                      <td className="cell-strong" data-label="Paciente">
-                        {patientName(receta.paciente_id)}
-                      </td>
-                      <td data-label="Medicamento">{receta.medicamento}</td>
-                      <td className="cell-wrap" data-label="Dosis">
-                        {receta.dosis}
-                      </td>
-                      <td data-label="Estado">
-                        <StatusChip estado={receta.estado} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </section>
       </div>
     </ModulePage>

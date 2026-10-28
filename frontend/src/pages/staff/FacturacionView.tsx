@@ -15,15 +15,17 @@ import './FacturacionView.css'
 const EMPTY_FORM = { paciente_id: '', total: '' }
 
 type Message = { tone: 'success' | 'error'; text: string } | null
+type Concepto = 'Atención médica' | 'Examen de laboratorio' | 'Medicamentos'
 
 export function FacturacionView() {
   const { session } = useAuth()
   const patients = useApiList<Paciente>('/admision/pacientes')
   const facturas = useApiList<Factura>('/facturacion/facturas')
   const resumen = useApiList<ResumenDia>('/facturacion/resumen')
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState<{ paciente_id: string; total: string }>({ paciente_id: '', total: '' })
   const [message, setMessage] = useState<Message>(null)
   const [pending, setPending] = useState(false)
+  const [concepto, setConcepto] = useState<Concepto>('Atención médica')
 
   const canWrite = session?.role === 'cajero' || session?.role === 'admin'
   const patientName = (id: number) =>
@@ -39,10 +41,25 @@ export function FacturacionView() {
       await api.post('/facturacion/facturas', {
         paciente_id: Number(form.paciente_id),
         total: Number(form.total),
+        concepto,
       })
       setForm({ ...EMPTY_FORM, paciente_id: form.paciente_id })
+      setConcepto('Atención médica')
       setMessage({ tone: 'success', text: 'Factura emitida. El resumen diario se actualizó.' })
       await Promise.all([facturas.reload(), resumen.reload()])
+    } catch (error) {
+      setMessage({ tone: 'error', text: getApiError(error) })
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const handlePagar = async (facturaId: number) => {
+    setPending(true)
+    try {
+      await api.patch(`/facturacion/facturas/${facturaId}/pagar`)
+      setMessage({ tone: 'success', text: 'Factura marcada como pagada.' })
+      await facturas.reload()
     } catch (error) {
       setMessage({ tone: 'error', text: getApiError(error) })
     } finally {
@@ -109,6 +126,18 @@ export function FacturacionView() {
                   value={form.total}
                 />
               </div>
+              <div className="field">
+                <label htmlFor="invoice-concepto">Concepto del cobro</label>
+                <select
+                  id="invoice-concepto"
+                  value={concepto}
+                  onChange={(e) => setConcepto(e.target.value as Concepto)}
+                >
+                  <option value="Atención médica">Atención médica</option>
+                  <option value="Examen de laboratorio">Examen de laboratorio</option>
+                  <option value="Medicamentos">Medicamentos</option>
+                </select>
+              </div>
               {message && <Feedback tone={message.tone}>{message.text}</Feedback>}
               <div className="form-actions">
                 <button
@@ -131,7 +160,6 @@ export function FacturacionView() {
                 Facturas
               </h2>
             </div>
-            <span className="count-badge">{facturas.data.length}</span>
           </div>
           {facturas.loading ? (
             <LoadingRows rows={4} />
@@ -149,7 +177,9 @@ export function FacturacionView() {
                     <th scope="col">Factura</th>
                     <th scope="col">Paciente</th>
                     <th scope="col">Total</th>
+                    <th scope="col">Concepto</th>
                     <th scope="col">Estado</th>
+                    <th scope="col">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -164,8 +194,25 @@ export function FacturacionView() {
                       <td className="cell-number" data-label="Total">
                         {formatCurrency(factura.total)}
                       </td>
+                      <td data-label="Concepto">
+                        {factura.concepto || '—'}
+                      </td>
                       <td data-label="Estado">
                         <StatusChip estado={factura.estado_pago} />
+                      </td>
+                      <td data-label="Acción">
+                        {factura.estado_pago !== 'Pagada' && (
+                          <button
+                            className="button button-secondary"
+                            onClick={() => handlePagar(factura.id)}
+                            disabled={pending}
+                          >
+                            {pending ? 'Procesando…' : 'Pagar'}
+                          </button>
+                        )}
+                        {factura.estado_pago === 'Pagada' && (
+                          <span className="chip chip-small">Pagada</span>
+                        )}
                       </td>
                     </tr>
                   ))}

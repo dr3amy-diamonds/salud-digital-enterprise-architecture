@@ -14,7 +14,7 @@ router = APIRouter()
 def crear_receta(
     payload: RecetaCreate,
     db: Session = Depends(get_db),
-    _u=Depends(require_role(["medico", "farmaceutico", "admin"])),
+    _u=Depends(require_role(["medico"])),
 ):
     if not db.query(Paciente).filter(Paciente.id == payload.paciente_id).first():
         raise HTTPException(status_code=404, detail="Paciente no existe")
@@ -23,6 +23,21 @@ def crear_receta(
     db.commit()
     db.refresh(r)
     return {"id": r.id, "paciente_id": r.paciente_id, "medicamento": r.medicamento}
+
+
+@router.patch("/recetas/{receta_id}/dispensar", status_code=200)
+def dispensar_receta(
+    receta_id: int,
+    db: Session = Depends(get_db),
+    _u=Depends(require_role(["farmaceutico", "gerencia", "admin"])),
+):
+    receta = db.query(Receta).filter(Receta.id == receta_id).first()
+    if not receta:
+        raise HTTPException(status_code=404, detail="Receta no encontrada")
+    receta.estado = "Entregada"
+    db.commit()
+    db.refresh(receta)
+    return {"id": receta.id, "estado": receta.estado, "medicamento": receta.medicamento}
 
 
 @router.get("/recetas")

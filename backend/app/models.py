@@ -101,6 +101,7 @@ class Factura(Base):
     paciente_id = Column(Integer, ForeignKey("admision.pacientes.id", ondelete="CASCADE"), nullable=False)
     atencion_id = Column(Integer, ForeignKey("clinico.historias.id"))
     total = Column(Numeric(10, 2), nullable=False)
+    concepto = Column(Text, nullable=False, default="Atención médica")
     fecha_emision = Column(DateTime, server_default=func.now())
     estado_pago = Column(Text, default="Pendiente")
 
