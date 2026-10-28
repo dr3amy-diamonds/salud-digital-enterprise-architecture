@@ -10,7 +10,7 @@ import { homePathForRole, ROLE_LABELS } from '../lib/roles'
 import type { StaffRole } from '../lib/roles'
 import './Login.css'
 
-type AuthTab = 'login' | 'request'
+type AuthTab = 'login' | 'request' | 'register'
 
 const REQUEST_ROLES: StaffRole[] = ['medico', 'bacteriologo', 'farmaceutico', 'cajero', 'gerencia']
 
@@ -24,6 +24,8 @@ export function Login() {
   const [requestError, setRequestError] = useState('')
   const [requestPending, setRequestPending] = useState(false)
   const [requestId, setRequestId] = useState<number | null>(null)
+  const [registerError, setRegisterError] = useState('')
+  const [registerPending, setRegisterPending] = useState(false)
 
   if (session) {
     return <Navigate to={homePathForRole(session.role)} replace />
@@ -82,10 +84,41 @@ export function Login() {
     }
   }
 
+  const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setRegisterError('')
+    setRegisterPending(true)
+    const form = event.currentTarget
+    const formData = new FormData(form)
+
+    try {
+      const { data } = await api.post<{ access_token: string; token_type: string; role: string }>(
+        '/auth/registro-paciente',
+        {
+          nombre: String(formData.get('nombre') ?? '').trim(),
+          documento: String(formData.get('documento') ?? '').trim(),
+          telefono: String(formData.get('telefono') ?? '').trim(),
+          email: String(formData.get('email') ?? '').trim(),
+          password: String(formData.get('password') ?? ''),
+          confirmar_password: String(formData.get('confirmar_password') ?? ''),
+        },
+      )
+      const nextSession = login(data.access_token)
+      navigate('/paciente', { replace: true })
+      void nextSession.role
+    } catch (error) {
+      setRegisterError(getApiError(error))
+      form.querySelector<HTMLInputElement>('input[name="documento"]')?.focus()
+    } finally {
+      setRegisterPending(false)
+    }
+  }
+
   const switchTab = (next: AuthTab) => {
     setTab(next)
     setLoginError('')
     setRequestError('')
+    setRegisterError('')
     setRequestId(null)
   }
 
@@ -176,11 +209,19 @@ export function Login() {
         <div className="auth-card">
           <div className="auth-card-heading">
             <p className="eyebrow">Bienvenido</p>
-            <h2>{tab === 'login' ? 'Ingresa a tu cuenta' : 'Solicita acceso'}</h2>
+            <h2>
+              {tab === 'login'
+                ? 'Ingresa a tu cuenta'
+                : tab === 'register'
+                  ? 'Crea tu cuenta de paciente'
+                  : 'Solicita acceso'}
+            </h2>
             <p>
               {tab === 'login'
                 ? 'Usa las credenciales asignadas por tu institución.'
-                : 'Un administrador revisará tu solicitud antes de habilitar la cuenta.'}
+                : tab === 'register'
+                  ? 'Regístrate con tu documento y obtén acceso inmediato a tu portal.'
+                  : 'Un administrador revisará tu solicitud antes de habilitar la cuenta.'}
             </p>
           </div>
 
@@ -194,16 +235,84 @@ export function Login() {
               Ingresar
             </button>
             <button
+              aria-pressed={tab === 'register'}
+              className={tab === 'register' ? 'auth-tab is-active' : 'auth-tab'}
+              onClick={() => switchTab('register')}
+              type="button"
+            >
+              Registro Paciente
+            </button>
+            <button
               aria-pressed={tab === 'request'}
               className={tab === 'request' ? 'auth-tab is-active' : 'auth-tab'}
               onClick={() => switchTab('request')}
               type="button"
             >
-              Solicitar cuenta
+              Solicitar Cuenta
             </button>
           </div>
 
-          {tab === 'login' ? (
+          {tab === 'register' ? (
+            <form className="auth-form" onSubmit={handleRegister}>
+              <div className="field">
+                <label htmlFor="register-name">Nombre completo</label>
+                <div className="input-shell">
+                  <Icon name="user" size={19} />
+                  <input autoComplete="name" id="register-name" minLength={2} name="nombre" placeholder="Nombre y apellidos" required type="text" />
+                </div>
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="register-document">Documento</label>
+                  <div className="input-shell">
+                    <Icon name="shield" size={19} />
+                    <input autoComplete="off" id="register-document" inputMode="numeric" minLength={5} name="documento" pattern="[0-9]{5,12}" placeholder="Número de documento" required title="5 a 12 dígitos" type="text" />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="register-phone">Teléfono</label>
+                  <div className="input-shell">
+                    <Icon name="user" size={19} />
+                    <input autoComplete="tel" id="register-phone" inputMode="numeric" name="telefono" pattern="[0-9]{7,10}" placeholder="Número de contacto" required title="7 a 10 dígitos" type="tel" />
+                  </div>
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="register-email">Correo electrónico</label>
+                <div className="input-shell">
+                  <Icon name="mail" size={19} />
+                  <input autoComplete="email" id="register-email" name="email" placeholder="nombre@correo.com" required type="email" />
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="register-password">Contraseña</label>
+                <div className="input-shell">
+                  <Icon name="lock" size={19} />
+                  <input autoComplete="new-password" id="register-password" minLength={6} name="password" placeholder="Mínimo 6 caracteres" required type={showPassword ? 'text' : 'password'} />
+                  <button aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showPassword} className="field-action" onClick={() => setShowPassword((value) => !value)} type="button">
+                    {showPassword ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="register-confirm">Confirmar contraseña</label>
+                <div className="input-shell">
+                  <Icon name="lock" size={19} />
+                  <input autoComplete="new-password" id="register-confirm" minLength={6} name="confirmar_password" placeholder="Repite la contraseña" required type={showPassword ? 'text' : 'password'} />
+                </div>
+              </div>
+              {registerError && (
+                <p className="form-message form-message-error" role="alert">
+                  <Icon name="alert" size={18} />
+                  {registerError}
+                </p>
+              )}
+              <button className="button button-primary button-wide" disabled={registerPending} type="submit">
+                {registerPending ? 'Creando cuenta…' : 'Crear cuenta'}
+                {!registerPending && <Icon name="arrow-right" size={19} />}
+              </button>
+            </form>
+          ) : tab === 'login' ? (
             <form className="auth-form" onSubmit={handleLogin}>
               <div className="field">
                 <label htmlFor="login-username">Usuario</label>

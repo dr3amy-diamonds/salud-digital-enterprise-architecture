@@ -331,7 +331,7 @@
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 3px;
   margin: 21px 0 22px;
   padding: 4px;

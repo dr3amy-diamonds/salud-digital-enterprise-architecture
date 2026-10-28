@@ -31,7 +31,7 @@ class Paciente(Base):
     nombre = Column(Text, nullable=False)
     documento = Column(Text, unique=True, nullable=False, index=True)
     telefono = Column(Text)
-    email = Column(Text)
+    email = Column(Text, unique=True)
     fecha_registro = Column(DateTime, server_default=func.now())
 
 

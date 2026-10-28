@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 Rol = Literal["medico", "bacteriologo", "farmaceutico", "cajero", "gerencia", "admin"]
 RolSolicitable = Literal["medico", "bacteriologo", "farmaceutico", "cajero", "gerencia"]
@@ -13,6 +13,15 @@ class PacienteCreate(BaseModel):
     documento: str = Field(..., min_length=5)
     telefono: str | None = None
     email: str | None = None
+
+
+class RegistroPaciente(BaseModel):
+    nombre: str = Field(..., min_length=2, max_length=120)
+    documento: str = Field(..., pattern=r"^\d{5,12}$")
+    telefono: str = Field(..., pattern=r"^\d{7,10}$")
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    confirmar_password: str = Field(..., min_length=6)
 
 
 class CitaCreate(BaseModel):

@@ -14,11 +14,14 @@ from backend.app.core.security import (
     verify_password,
 )
 from backend.app.db.session import get_db
-from backend.app.models import SolicitudAcceso, Usuario
+from sqlalchemy.exc import IntegrityError
+
+from backend.app.models import Paciente, SolicitudAcceso, Usuario
 from backend.app.schemas import (
     AprobarSolicitud,
     CambioPassword,
     LoginRequest,
+    RegistroPaciente,
     SolicitudCreate,
     Token,
     UsuarioCreate,
@@ -48,6 +51,53 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Cuenta desactivada")
     token = create_access_token({"sub": user.username, "role": user.role, "paciente_id": user.paciente_id})
     return {"access_token": token, "token_type": "bearer", "role": user.role}
+
+
+@router.post("/registro-paciente", response_model=Token, status_code=201)
+def registrar_paciente(payload: RegistroPaciente, db: Session = Depends(get_db)):
+    if payload.password != payload.confirmar_password:
+        raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
+    if db.query(Usuario).filter(Usuario.username == payload.documento).first():
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con ese documento")
+    if db.query(Paciente).filter(Paciente.email == payload.email).first():
+        raise HTTPException(status_code=400, detail="El correo ya está registrado")
+
+    try:
+        paciente = db.query(Paciente).filter(Paciente.documento == payload.documento).first()
+        if not paciente:
+            paciente = Paciente(
+                nombre=payload.nombre.strip(),
+                documento=payload.documento,
+                telefono=payload.telefono,
+                email=payload.email.strip(),
+            )
+            db.add(paciente)
+            db.flush()
+        else:
+            # Vincular expediente existente; actualizar datos básicos si faltan.
+            if not paciente.email:
+                paciente.email = payload.email.strip()
+            if not paciente.telefono:
+                paciente.telefono = payload.telefono
+
+        user = Usuario(
+            username=payload.documento,
+            hashed_password=hash_password(payload.password),
+            role="paciente",
+            is_active=True,
+            paciente_id=paciente.id,
+        )
+        db.add(user)
+        db.flush()
+        token = create_access_token(
+            {"sub": user.username, "role": user.role, "paciente_id": user.paciente_id}
+        )
+        db.commit()
+        db.refresh(user)
+        return {"access_token": token, "token_type": "bearer", "role": user.role}
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="No se pudo completar el registro")
 
 
 @router.post("/solicitudes", status_code=201)
